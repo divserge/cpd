@@ -6,6 +6,7 @@ find_package(Cpd REQUIRED)
 if("${CPD_WITH_JSONCPP}")
     find_package(Cpd COMPONENTS jsoncpp)
     add_executable(cpd-rigid rigid.cpp)
+#include <jsoncpp/json/json.h>
     target_link_libraries(cpd-rigid PRIVATE Cpd::Library-C++ Cpd::Jsoncpp)
 
     if("${Fgt_FOUND}")
@@ -21,7 +22,7 @@ add_executable(cpd-random random.cpp)
 target_link_libraries(cpd-random PRIVATE Cpd::Library-C++)
 
 add_executable(cpd-callback callback.cpp)
-target_link_libraries(cpd-callback PRIVATE Cpd::Library-C++)
+target_link_libraries(cpd-callback PRIVATE Cpd::Library-C++ Cpd::Jsoncpp)
 
 add_executable(cpd-transform transform.cpp)
 target_link_libraries(cpd-transform PRIVATE Cpd::Library-C++)

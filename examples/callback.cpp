@@ -1,12 +1,44 @@
 #include <iostream>
+#include <iterator>
 #include <string>
+#include <fstream>
+#include <chrono>
+#include <functional>
 
 #include <cpd/nonrigid.hpp>
 #include <cpd/rigid.hpp>
+#include <cpd/gauss_transform_fgt.hpp>
+#include <cpd/jsoncpp.hpp>
 
-void RigidCallback(const cpd::Result &r) {
-  std::cout << r.points << std::endl << std::endl;
-}
+class CallbackHandler {
+public:
+    void RigidCallback(const cpd::RigidResult &r) {
+        cpd::Matrix matrix = r.matrix();
+        size_t iterator = r.iterations;
+        auto miliseconds = r.runtime;
+        for (uint32_t row_index = 0; row_index < matrix.rows(); ++row_index) {
+            for (uint32_t col_index = 0; col_index < matrix.cols(); ++col_index) {
+                transformations_.push_back(matrix(row_index, col_index));
+            }
+        }
+        std::cout << cpd::to_json(r) << std::endl;
+        milliseconds_after_start_.push_back(miliseconds.count());
+    }
+    void DumpToFiles(const std::string& output_directory) {
+        dump_to_file(transformations_, output_directory + "transformations.bin");
+        dump_to_file(milliseconds_after_start_, output_directory + "milliseconds.bin");
+    }
+private:
+    template <class T>
+            static void dump_to_file(const std::vector<T>& vec, const std::string& filename) {
+        std::ofstream output_file (filename);
+        std::ostream_iterator<T> output_iterator(output_file);
+        std::copy(vec.begin(), vec.end(), output_iterator);
+    }
+    std::vector<double> transformations_;
+    std::vector<uint32_t> iteration_number_;
+    std::vector<uint32_t> milliseconds_after_start_;
+};
 
 void NonrigidCallback(const cpd::NonrigidResult &r) {
   std::cout << r.points << std::endl << std::endl;
@@ -26,14 +58,20 @@ int main(int argc, char** argv) {
 
     if (method == "rigid") {
         cpd::Rigid rigid;
-        auto *cb = RigidCallback;
-        rigid.add_callback(cb);
+        CallbackHandler handler;
+        auto callback = std::bind(&CallbackHandler::RigidCallback, handler, std::placeholders::_1);
+        rigid.add_callback(callback);
         auto rigid_result = rigid.run(fixed, moving);
-    } else if (method == "nonrigid") {
-        cpd::Nonrigid nonrigid;
-        auto *cb = NonrigidCallback;
-        nonrigid.add_callback(cb);
-        auto nonrigid_result = nonrigid.run(fixed, moving);
+        handler.DumpToFiles("./");
+    } else if (method == "rigid_g") {
+        cpd::Rigid rigid;
+        rigid.gauss_transform(std::move(
+                std::unique_ptr<cpd::GaussTransform>(new cpd::GaussTransformFgt())));
+        CallbackHandler handler;
+        auto callback = std::bind(&CallbackHandler::RigidCallback, handler, std::placeholders::_1);
+        rigid.add_callback(callback);
+        auto rigid_result = rigid.run(fixed, moving);
+        handler.DumpToFiles("./");
     } else {
         std::cout << "Invalid method: " << method << std::endl;
         return 1;
